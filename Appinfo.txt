@@ -1,0 +1,2 @@
+com.android.alarmclock/com.meizu.flyme.alarmclock.DeskClock
+com.meizu.media.gallery/com.meizu.media.gallery.GalleryActivity
