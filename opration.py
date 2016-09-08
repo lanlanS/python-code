@@ -1,14 +1,24 @@
 import os
 import shutil
 import subprocess
+import sys
+import time
+
+ISOTIMEFORMAT = '%Y-%m-%d %Hh%Mm'
 
 
-class Operation(Object):
-    def __init__(self, sn):
+class OPRATION:
+    def __init__(self, sn, eventtimes):
         self.sn = sn
+        self.eventtimes = eventtimes
 
-    def __getprcocessname(self, pid):
-        # pid = templine[2]
+        '''init resultdir'''
+        resultdir = time.strftime(ISOTIMEFORMAT, time.localtime())
+        if os.path.exists(os.getcwd() + '\\' + resultdir):
+            shutil.rmtree(os.getcwd() + '\\' + resultdir)
+        os.mkdir(os.getcwd() + '\\' + resultdir)
+
+    def getprcocessname(self, pid):
         pid_before = 0
 
         if pid_before != pid and pid != 'of':
@@ -23,9 +33,8 @@ class Operation(Object):
                 print 'cannot find the process,check PID: ' + pid
             return proc
 
-    def __killproc(self, proc):
+    def killproc(self, proc):
         """
-
         :type proc: String
         """
         killcmd = 'adb -s ' + self.sn + ' shell am force-stop ' + proc
@@ -41,7 +50,7 @@ class Operation(Object):
         kout = k.communicate()
         if not kout[0]:
             if proc not in "settings" or "dailer" or "mms" or "launcher" or "systemui":
-                kout1 = self.__killproc(proc)
+                kout1 = self.killproc(proc)
                 if kout1[0] == '':
                     print proc + '_Monkey test compeleted.'
                 else:
@@ -51,65 +60,36 @@ class Operation(Object):
         os.system('adb devices')
         pass
 
-    def excucmd(self, dirc, name):
-        procdir = dirc + '\\' + name
-        if os.path.exists(dirc):
-            if os.path.exists(procdir):
-                shutil.rmtree(procdir)
-                # os.listdir(procdir)
-            os.mkdir(procdir)
+    def runmonkey(self, pname):
+        """
+        execute monkey test process by process
+        :param pname:process name
+        :return: monkey execution result
+        """
+        mcmd = 'adb -s ' + self.sn + ' shell monkey -p ' + pname + ' --ignore-crashes --ignore-timeouts ' \
+                                                                   '--ignore-security-exceptions ' \
+                                                                   '--kill-process-after-error --pct-trackball 0 ' \
+                                                                   '--pct-nav 0 --pct-majornav 0 --pct-anyevent 0 ' \
+                                                                   '-v -v -v --throttle 500 ' + str(self.eventtimes)
+        m = subprocess.Popen(mcmd, shell=True, executable='C:\Windows\System32\cmd.exe',
+                             stdout=subprocess.PIPE)
 
-            io_dir1 = procdir + r'\io_result'
-            sql_dir1 = procdir + r'\sql_result'
-            # diskwork_dir1 = procdir + r'\disk_result'
-            if os.path.exists(procdir):
-                os.mkdir(io_dir1)
-                os.mkdir(sql_dir1)
-                # os.mkdir(diskwork_dir1)
+        mout = m.communicate()
+        return mout
 
-            iolog = io_dir1 + r"\iolog_" + name
-            sqllog = sql_dir1 + r"\sqllog_" + name
-            # disklog = diskwork_dir1 + r"\disklog_" + name
-
-            iocmd = 'adb -s ' + self.sn + ' logcat -s "Perf_IO" > ' + iolog
-            sqlcmd = 'adb -s ' + self.sn + ' logcat -s "SQLiteConnection" >  ' + sqllog
-            # diskcmd = 'adb -s ' + self.sn + ' shell packagemonitor > ' + disklog
-
-            mcmd = 'adb -s ' + self.sn + ' shell monkey -p ' + name + ' --ignore-crashes --ignore-timeouts ' \
-                                                                      '--ignore-security-exceptions ' \
-                                                                      '--kill-process-after-error --pct-trackball 0 ' \
-                                                                      '--pct-nav 0 --pct-majornav 0 --pct-anyevent 0 '\
-                                                                      '-v -v -v --throttle 500 ' + str(self.eventtimes)
-
-            io = subprocess.Popen(iocmd, shell=True, executable='C:\Windows\System32\cmd.exe',
-                                  stdout=subprocess.PIPE)
-            sql = subprocess.Popen(sqlcmd, shell=True, executable='C:\Windows\System32\cmd.exe',
-                                   stdout=subprocess.PIPE)
-            # disk = subprocess.Popen(diskcmd, shell=True, executable='C:\Windows\System32\cmd.exe',
-            #                        stdout=subprocess.PIPE)
-            m = subprocess.Popen(mcmd, shell=True, executable='C:\Windows\System32\cmd.exe',
-                                 stdout=subprocess.PIPE)
-
-            mout = m.communicate()
-
-            if ':Monkey:' == mout[0].split()[0]:
-                io.kill()
-                sql.kill()
-                # disk.kill()
-                m.kill()
-
-                self.dealwithiofile(iolog)
-                self.dealwithsqlfile(sqllog)
-                # self.dealwithdiskwordfile(disklog)
-
-                self.kill(name)
-
-        else:
-            print 'Error,check process ' + name
-
-    def makedirc(self, dirname):
+    def makedirc(self, dir):
         """ Make a new directory """
-        
+        if os.path.exists(dir):
+            shutil.rmtree(dir)
+        os.mkdir(dir)
+
+        if os.path.exists(dir):
+            return True
+        else:
+            return False
 
 
+op = OPRATION('M96GAEP5UKV93', 55)
 
+op.getprcocessname()
+op.runmonkey()
