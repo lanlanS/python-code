@@ -1,13 +1,23 @@
+#!/usr/bin/evn python
+# -*- coding:utf-8 -*-
+
+# FileName adbtools.py
+# Created Time: 2016/9/15
+"""
+ 基本操作类
+"""
+
 import os
 import shutil
 import subprocess
-import sys
+import logging
 import time
 
 ISOTIMEFORMAT = '%Y-%m-%d %Hh%Mm'
+log = logging.getLogger("debug")
 
 
-class OPRATION:
+class OPRATION(object):
     def __init__(self, sn, eventtimes):
         self.sn = sn
         self.eventtimes = eventtimes
@@ -33,7 +43,7 @@ class OPRATION:
                 print 'cannot find the process,check PID: ' + pid
             return proc
 
-    def killproc(self, proc):
+    def __killproc(self, proc):
         """
         :type proc: String
         """
@@ -50,7 +60,7 @@ class OPRATION:
         kout = k.communicate()
         if not kout[0]:
             if proc not in "settings" or "dailer" or "mms" or "launcher" or "systemui":
-                kout1 = self.killproc(proc)
+                kout1 = self.__killproc(proc)
                 if kout1[0] == '':
                     print proc + '_Monkey test compeleted.'
                 else:
@@ -88,8 +98,17 @@ class OPRATION:
         else:
             return False
 
+    def getallapp(self):
+        appfile = os.getcwd() + '\\Appinfo.txt'
+        f = open(appfile, 'r')
+        # f = open(r'E:\app_bootup\application-boot-up-speed\database\flyme_app_list.txt','r')
 
-op = OPRATION('M96GAEP5UKV93', 55)
+        os.mkdir('./dumpsys')
+        applist = f.readlines()
 
-op.getprcocessname()
-op.runmonkey()
+
+op = OPRATION('M95QACNS339EN', 55)
+
+mout = op.runmonkey('com.meizu.mstore')
+if ':Monkey:' == mout[0].split()[0]:
+    op.kill('com.meizu.mstore')

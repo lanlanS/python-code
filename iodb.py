@@ -1,9 +1,12 @@
+# coding=utf-8
 # coding = utf-8
 # !/usr/bin/python
 
 import os
 import shutil
 import subprocess
+
+import xlwt
 
 
 class IODB(object):
@@ -12,10 +15,10 @@ class IODB(object):
         self.eventtimes = eventtimes
         pass
 
-    def __getprcocessname(self, pid):
+    def __getprcocessname(self, pid_before, pid):
         # pid = templine[2]
-        pid_before = 0
-
+        # pid_before = 0
+        proc = 'Unkonw'
         if pid_before != pid and pid != 'of':
             p = subprocess.Popen('adb -s ' + self.sn + ' shell ps ' + pid, stdin=subprocess.PIPE,
                                  stdout=subprocess.PIPE)
@@ -24,9 +27,8 @@ class IODB(object):
             if b and b.split()[-1] not in 'NAME':
                 proc = b.split()[-1].replace('/', '_')
             else:
-                proc = 'Unkonw'
                 print 'cannot find the process,check PID: ' + pid
-            return proc
+        return proc
 
     def __killproc(self, proc):
         """
@@ -153,7 +155,7 @@ class IODB(object):
 
     def dealwithsqlfile(self, infile):
         pid_before = 0
-        # infile = raw_input('Please input SQL_File log address: ')
+        sqlresult = {}
 
         dir1 = os.path.dirname(infile)
         if os.path.exists(dir1):
@@ -180,15 +182,19 @@ class IODB(object):
                                 proc = 'Unkonw'
                                 print 'cannot find the process,check PID: ' + pid
                             fileadd = dir1 + '\\' + pid + ' ' + proc
+                        pid_before = pid
+
                         if templine[6].startswith('executeFor') or templine[6].startswith('prepare'):
                             for c in templine:
-                                if 'sql' in c and 'PRAGMA' not in c and 'android_metadata' not in c:
+                                if 'sql' in c:
                                     i = templine.index(c)
-
-                                    with open(dir1 + '\\' + 'a_sqlinfo', 'a+') as resultfile:
-                                        info = '\t'.join([pid, proc, templine[6], ' '.join(templine[i:]), templine[8]])
-                                        resultfile.write(info)
-                                        resultfile.write('\n')
+                                    sql = ' '.join(templine[i:])
+                                    if 'PRAGMA' not in sql and 'android_metadata' not in sql:
+                                        key = ' '.join([pid, proc, templine[6], ' '.join(templine[i:])])
+                                        if sqlresult.has_key(key):
+                                            sqlresult[key] += 1
+                                        if not sqlresult.has_key(key):
+                                            sqlresult.setdefault(key, 1)
 
                         if os.path.isfile(fileadd):
                             with open(fileadd, 'a+') as tempfile2:
@@ -198,11 +204,17 @@ class IODB(object):
                                 tempfile1.write(line)
                             print 'initialize SQL file:' + dir1 + '\\' + pid + ' ' + proc
 
-                        pid_before = pid
+                with open(dir1 + '\\' + 'sqlresult', 'a+') as resultfile:
+                    sqlresult = sorted(sqlresult.iteritems(), key=lambda d: d[0].split()[0], reverse=True)
+                    for lines in sqlresult:
+                        # info = ('\t' * 3).join([lines, sqlresult[]])
+                        resultfile.write(('\t' * 3).join([lines[0], str(lines[1])]))
+                        resultfile.write('\n')
 
         print os.listdir(dir1)
         print '\n'
         print r'Go ' + dir1 + ', check SQL opration in mainthread'
+        return dir1 + '\\' + 'sqlresult'
 
     def dealwithdiskwordfile(self, infile):
         procdic = {}
@@ -239,27 +251,33 @@ class IODB(object):
         print 'Go ' + dir1 + ', check diskwork result in mainthread'
 
     def dealwithiofile(self, infile):
-        # infile = raw_input('Please input IO_File log address: ')
+        ioresult = {}
+        pidbefore = 0
 
         dir1 = os.path.dirname(infile)
         if os.path.exists(dir1):
             with open(infile, 'r') as iofile:
-                # RegEx = "W/Perf_IO[\s][(][\s]+\d+[)]: opened file:([\s\S]*)W/Perf_IO[\s][(][\s]+\d+[)]: opened file:"
-                # patten = re.compile(RegEx,re.M|re.I)
-
                 for line in iofile.readlines():
                     if line.strip():
                         templine = line.strip().split()
                         # print templine
                         if templine and len(templine) > 8:
                             pid = templine[2]
-                            proc = self.__getprcocessname(pid)
+                            proc = self.__getprcocessname(pidbefore, pid)
                             fileadd = dir1 + '\\' + pid + ' ' + proc + '.txt'
                             if templine[7] == 'opened':
                                 filename = templine[8].split('/')[-2] + ' ' + templine[8].split('/')[-1]
                                 l = line
                                 if filename:
                                     print 'initialize IO file:' + filename
+
+                                if any(s not in templine[8] for s in [r'/proc/', r'/sys/', '.apk', '.jar']):
+                                    key = '   '.join([pid, proc, templine[8]])
+                                    if ioresult.has_key(key):
+                                        ioresult[key] += 1
+                                    if not ioresult.has_key(key):
+                                        ioresult.setdefault(key, 1)
+
                             elif templine[7] in 'read':
                                 t = templine[-3]
                                 # l = line
@@ -284,11 +302,107 @@ class IODB(object):
                                 if not os.path.isfile(fileadd):
                                     with open(fileadd, 'w+') as tempfile1:
                                         tempfile1.write(l)
+                            pidbefore = pid
+            with open(dir1 + '\\' + 'ioresult', 'a+') as resultfile:
+                ioresult = sorted(ioresult.iteritems(), key=lambda d: d[0].split()[0], reverse=True)
+                for lines in ioresult:
+                    # info = ('\t' * 3).join([lines, sqlresult[]])
+                    resultfile.write(('\t' * 3).join([lines[0], str(lines[1])]))
+                    resultfile.write('\n')
 
         print os.listdir(dir1)
         print '\n'
         print 'Go ' + dir1 + ', check IO opration in mainthread'
+        return dir1 + '\\' + 'ioresult'
+
+    def write2excel(self, iotxtfile, sqltxtfile):
+
+        f = xlwt.Workbook()  # 创建工作簿
+
+        font0 = xlwt.Font()
+        font0.name = 'Arial'
+        font0.colour_index = 0
+        font0.bold = True
+
+        font1 = xlwt.Font()
+        font1.name = 'Arial'
+        font1.colour_index = 0
+        font1.bold = False
+
+        barBG = xlwt.Pattern()  # 设置背景
+        barBG.pattern = barBG.SOLID_PATTERN
+        # 灰色
+        barBG.pattern_fore_colour = 23
+
+        style0 = xlwt.XFStyle()
+        style0.font = font0
+        style0.pattern = barBG
+
+        style1 = xlwt.XFStyle()
+        style1.font = font1
+
+        '''
+             创建第一个sheet:
+             File IO Result
+        '''
+        sheet1 = f.add_sheet('IO Result', cell_overwrite_ok=True)
+
+        nrow_2 = 1
+
+        sheet1.col(0).width = 256 * 10
+        sheet1.col(1).width = 256 * 20
+        sheet1.col(2).width = 256 * 100
+        sheet1.col(3).width = 256 * 10
+
+        sheet1.write(0, 0, 'PID', style0)
+        sheet1.write(0, 1, 'Process Name ', style0)
+        sheet1.write(0, 2, 'Opened File Name ', style0)
+        sheet1.write(0, 3, 'Count ', style0)
+
+        with open(iotxtfile, 'r') as infile:
+            for lines in infile.readlines():
+                line = lines.strip('\n').split()
+                col_2 = 0
+                for i in line:
+                    sheet1.write(nrow_2, col_2, i, style1)
+                    col_2 += 1
+                nrow_2 += 1
+
+        '''
+        创建第二个sheet:
+        Sql Result
+        '''
+        sheet2 = f.add_sheet('Sql Result', cell_overwrite_ok=True)
+
+        nrow_2 = 1
+
+        sheet2.col(0).width = 256 * 10
+        sheet2.col(1).width = 256 * 20
+        sheet2.col(2).width = 256 * 35
+        sheet2.col(3).width = 256 * 100
+        sheet2.col(4).width = 256 * 10
+
+        sheet2.write(0, 0, 'PID', style0)
+        sheet2.write(0, 1, 'Process Name', style0)
+        sheet2.write(0, 2, 'Action', style0)
+        sheet2.write(0, 3, 'SQL statement ', style0)
+        sheet2.write(0, 4, 'Count ', style0)
+
+        with open(sqltxtfile, 'r') as infile:
+            for lines in infile.readlines():
+                line = lines.strip('\n').split()
+                col_2 = 0
+                tlist = [line[0], line[1], line[2], line[3:-2], line[-1]]
+                for i in tlist:
+                    sheet2.write(nrow_2, col_2, i, style1)
+                    col_2 += 1
+                nrow_2 += 1
+
+        savepath = os.getcwd() + r'\Reuslt.xls'
+        f.save(savepath)
+        if os.path.exists(savepath):
+            print '\n'
+            print r'Completed...\n Check result at ' + savepath
 
 
 a = IODB('M96GAEP5UKV93', 50)
-a.autoMonkey()
